@@ -1,95 +1,52 @@
 version: '3.8'
 
 services:
-  # ============================================
-  # Multi-Claude Command Center Dashboard
-  # ============================================
-  mc3-dashboard:
+  # MC3 Dashboard & API
+  mc3:
     build:
-      context: ../src
-      dockerfile: ../docker/Dockerfile.dashboard
-    container_name: mc3-dashboard
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: mc3
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://mc3:${POSTGRES_PASSWORD}@postgres:5432/mc3_db
+      - DATABASE_URL=postgresql://mc3:${POSTGRES_PASSWORD:-mc3secret}@postgres:5432/mc3_db
       - REDIS_URL=redis://redis:6379
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - NEXT_PUBLIC_APP_URL=${APP_URL:-http://localhost:3000}
     depends_on:
-      - postgres
-      - redis
-      - env-var-assistant
-    volumes:
-      - ../src:/app
-      - /app/node_modules
-      - claude-workspace:/workspace
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
-      - dev-network
+      - mc3-network
     restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
-  # ============================================
-  # Claude Worker Pool (Background Processing)
-  # ============================================
-  claude-worker:
-    build:
-      context: ../src
-      dockerfile: ../docker/Dockerfile.worker
-    container_name: claude-worker
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://mc3:${POSTGRES_PASSWORD}@postgres:5432/mc3_db
-      - REDIS_URL=redis://redis:6379
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
-      - VERCEL_TOKEN=${VERCEL_TOKEN}
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
-      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID}
-    depends_on:
-      - postgres
-      - redis
-      - env-var-assistant
-    volumes:
-      - ../src:/app
-      - /app/node_modules
-      - claude-workspace:/workspace
-    networks:
-      - dev-network
-    restart: unless-stopped
-    deploy:
-      replicas: ${WORKER_REPLICAS:-2}
-
-  # ============================================
   # PostgreSQL Database
-  # ============================================
   postgres:
     image: postgres:16-alpine
     container_name: mc3-postgres
     environment:
       - POSTGRES_DB=mc3_db
       - POSTGRES_USER=mc3
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mc3secret}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
     networks:
-      - dev-network
+      - mc3-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mc3"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U mc3 -d mc3_db"]
+      interval: 5s
       timeout: 5s
       retries: 5
 
-  # ============================================
   # Redis (Cache & Queue)
-  # ============================================
   redis:
     image: redis:7-alpine
     container_name: mc3-redis
@@ -99,103 +56,18 @@ services:
     ports:
       - "6379:6379"
     networks:
-      - dev-network
+      - mc3-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 3s
       retries: 5
 
-  # ============================================
-  # Env-Var-Assistant MCP Server
-  # ============================================
-  env-var-assistant:
-    build:
-      context: ../../env-var-assistant/mcp-server
-      dockerfile: Dockerfile
-    container_name: env-var-assistant-mcp
-    environment:
-      - OP_SERVICE_ACCOUNT_TOKEN=${OP_SERVICE_ACCOUNT_TOKEN}
-      - NODE_ENV=production
-    volumes:
-      - ~/.config/op:/root/.config/op:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - dev-network
-    restart: unless-stopped
-    command: node index.js
-
-  # ============================================
-  # n8n Workflow Automation (Optional)
-  # ============================================
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: n8n
-    environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-      - N8N_HOST=${N8N_HOST:-localhost}
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
-      - GENERIC_TIMEZONE=America/Phoenix
-    ports:
-      - "5678:5678"
-    volumes:
-      - n8n-data:/home/node/.n8n
-    networks:
-      - dev-network
-    restart: unless-stopped
-    profiles:
-      - optional
-
-  # ============================================
-  # Uptime Kuma Monitoring (Optional)
-  # ============================================
-  uptime-kuma:
-    image: louislam/uptime-kuma:1
-    container_name: uptime-kuma
-    volumes:
-      - uptime-kuma-data:/app/data
-    ports:
-      - "3001:3001"
-    networks:
-      - dev-network
-    restart: unless-stopped
-    profiles:
-      - optional
-
-  # ============================================
-  # pgAdmin (Database Management - Optional)
-  # ============================================
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: pgadmin
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@mc3.local}
-      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
-    ports:
-      - "5050:80"
-    networks:
-      - dev-network
-    restart: unless-stopped
-    profiles:
-      - optional
-
 networks:
-  dev-network:
+  mc3-network:
     driver: bridge
 
 volumes:
   postgres-data:
-    driver: local
   redis-data:
-    driver: local
-  n8n-data:
-    driver: local
-  uptime-kuma-data:
-    driver: local
-  claude-workspace:
-    driver: local
