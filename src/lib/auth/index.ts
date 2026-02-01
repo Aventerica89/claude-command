@@ -1,11 +1,28 @@
 import { cookies } from 'next/headers'
 import { createHash, randomBytes } from 'crypto'
+import Redis from 'ioredis'
 
 const SESSION_COOKIE = 'mc3_session'
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
+const SESSION_PREFIX = 'mc3:session:'
 
-// Simple in-memory session store (for single-user, single-instance use)
-const sessions = new Map<string, { createdAt: number }>()
+// Redis client for session storage
+let redis: Redis | null = null
+
+function getRedisClient(): Redis {
+  if (!redis) {
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+    redis = new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
+    })
+
+    redis.on('error', (err) => {
+      console.error('Redis connection error:', err)
+    })
+  }
+  return redis
+}
 
 function hashPassword(password: string): string {
   return createHash('sha256').update(password).digest('hex')
@@ -35,34 +52,43 @@ export async function verifyPassword(password: string): Promise<boolean> {
 
 export async function createSession(): Promise<string> {
   const token = generateSessionToken()
-  sessions.set(token, { createdAt: Date.now() })
+  const redis = getRedisClient()
 
-  // Clean up old sessions
-  const now = Date.now()
-  for (const [key, value] of sessions) {
-    if (now - value.createdAt > SESSION_MAX_AGE * 1000) {
-      sessions.delete(key)
-    }
+  try {
+    // Store session in Redis with expiry
+    await redis.setex(
+      `${SESSION_PREFIX}${token}`,
+      SESSION_MAX_AGE,
+      JSON.stringify({ createdAt: Date.now() })
+    )
+  } catch (error) {
+    console.error('Failed to create session in Redis:', error)
+    throw new Error('Session creation failed')
   }
 
   return token
 }
 
 export async function validateSession(token: string): Promise<boolean> {
-  const session = sessions.get(token)
-  if (!session) return false
+  const redis = getRedisClient()
 
-  const now = Date.now()
-  if (now - session.createdAt > SESSION_MAX_AGE * 1000) {
-    sessions.delete(token)
+  try {
+    const sessionData = await redis.get(`${SESSION_PREFIX}${token}`)
+    return sessionData !== null
+  } catch (error) {
+    console.error('Failed to validate session:', error)
     return false
   }
-
-  return true
 }
 
 export async function destroySession(token: string): Promise<void> {
-  sessions.delete(token)
+  const redis = getRedisClient()
+
+  try {
+    await redis.del(`${SESSION_PREFIX}${token}`)
+  } catch (error) {
+    console.error('Failed to destroy session:', error)
+  }
 }
 
 export async function isAuthenticated(): Promise<boolean> {

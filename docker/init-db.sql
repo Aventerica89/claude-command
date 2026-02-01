@@ -209,7 +209,7 @@ ON CONFLICT DO NOTHING;
 -- Insert default system configuration
 INSERT INTO system_config (key, value, description) VALUES
   ('max_concurrent_sessions', '10', 'Maximum number of parallel Claude sessions'),
-  ('default_model', '"claude-sonnet-4-20250514"', 'Default Claude model to use'),
+  ('default_model', '"claude-3-5-sonnet-20241022"', 'Default Claude model to use'),
   ('max_tokens', '4096', 'Maximum tokens per request'),
   ('log_retention_days', '30', 'Number of days to keep logs'),
   ('auto_approve_low_risk', 'false', 'Automatically approve low-risk operations'),

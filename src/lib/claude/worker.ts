@@ -56,7 +56,7 @@ export class ClaudeWorker extends EventEmitter {
     super()
     this.id = config.sessionId
     this.name = config.name
-    this.model = config.model || 'claude-sonnet-4-20250514'
+    this.model = config.model || 'claude-3-5-sonnet-20241022'
     this.maxTokens = config.maxTokens || 8192
     this.systemPrompt = config.systemPrompt || this.getDefaultSystemPrompt()
     this.workingDirectory = config.workingDirectory || process.cwd()

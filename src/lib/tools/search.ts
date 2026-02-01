@@ -1,9 +1,9 @@
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { glob } from 'glob'
 import type { Tool, ToolResult } from './types'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 export const globTool: Tool = {
   name: 'Glob',
@@ -93,7 +93,7 @@ export const grepTool: Tool = {
     const context = input.context as number | undefined
     const caseInsensitive = input.case_insensitive as boolean | undefined
 
-    const args = ['rg', '--color=never', '--line-number']
+    const args = ['--color=never', '--line-number']
 
     if (caseInsensitive) args.push('-i')
     if (context) args.push(`-C${context}`)
@@ -102,7 +102,7 @@ export const grepTool: Tool = {
     args.push('--', pattern, searchPath)
 
     try {
-      const { stdout } = await execAsync(args.join(' '), {
+      const { stdout } = await execFileAsync('rg', args, {
         maxBuffer: 10 * 1024 * 1024,
         timeout: 30000,
       })

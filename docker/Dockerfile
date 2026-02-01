@@ -28,6 +28,9 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Install ripgrep for Grep tool functionality
+RUN apk add --no-cache ripgrep
+
 COPY --from=builder /app/public ./public
 
 RUN mkdir .next
