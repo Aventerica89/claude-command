@@ -7,17 +7,17 @@ interface Session {
   name: string
   status: 'idle' | 'running' | 'paused' | 'completed' | 'failed'
   taskType: string | null
-  progress: number
+  progress: number | null
   startedAt: Date | null
   createdAt: Date
 }
 
 const statusConfig = {
-  idle: { color: 'bg-gray-500', label: 'Idle' },
+  idle: { color: 'bg-gray-500', label: 'Idle', pulse: false },
   running: { color: 'bg-green-500', label: 'Running', pulse: true },
-  paused: { color: 'bg-yellow-500', label: 'Paused' },
-  completed: { color: 'bg-blue-500', label: 'Completed' },
-  failed: { color: 'bg-red-500', label: 'Failed' },
+  paused: { color: 'bg-yellow-500', label: 'Paused', pulse: false },
+  completed: { color: 'bg-blue-500', label: 'Completed', pulse: false },
+  failed: { color: 'bg-red-500', label: 'Failed', pulse: false },
 }
 
 export function SessionCard({ session }: { session: Session }) {
@@ -59,12 +59,12 @@ export function SessionCard({ session }: { session: Session }) {
         <div className="mb-3">
           <div className="flex justify-between text-xs text-gray-400 mb-1">
             <span>Progress</span>
-            <span>{session.progress}%</span>
+            <span>{session.progress ?? 0}%</span>
           </div>
           <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
             <div
               className="h-full bg-blue-500 transition-all duration-500"
-              style={{ width: `${session.progress}%` }}
+              style={{ width: `${session.progress ?? 0}%` }}
             />
           </div>
         </div>
